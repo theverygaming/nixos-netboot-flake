@@ -23,7 +23,7 @@
 # This module creates netboot media containing the given NixOS
 # configuration.
 
-{ config, lib, pkgs, nixpkgs, netbootUrlbase, ... }:
+{ config, lib, pkgs, nixpkgs, netbootUrlbase, rootDiskSize, ... }:
 
 with lib;
 
@@ -66,7 +66,7 @@ with lib;
     fileSystems."/" = mkImageMediaOverride
       {
         fsType = "tmpfs";
-        options = [ "mode=0755" "size=10M" ];
+        options = [ "mode=0755" "size=${rootDiskSize}" ];
       };
 
     fileSystems."/nix/store" = mkImageMediaOverride

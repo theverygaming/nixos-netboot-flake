@@ -4,7 +4,7 @@
   description = "tiny NixOS netboot thing";
   inputs.nixpkgs.url = "nixpkgs/nixos-24.05";
   outputs = { self, nixpkgs }: {
-    netboot = { targetSystem, hostSystem, netbootUrlbase, extraModules ? [ ] }:
+    netboot = { targetSystem, hostSystem, netbootUrlbase, rootDiskSize ? "10M", extraModules ? [ ] }:
       let
         netbootsystem = nixpkgs.lib.nixosSystem {
           system = targetSystem;
@@ -13,6 +13,7 @@
               _module.args = {
                 nixpkgs = nixpkgs;
                 netbootUrlbase = netbootUrlbase;
+                rootDiskSize = rootDiskSize;
               };
             }
             ./netboot.nix
