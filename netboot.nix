@@ -23,13 +23,12 @@
 # This module creates netboot media containing the given NixOS
 # configuration.
 
-{ config, lib, pkgs, nixpkgs, netbootUrlbase, rootDiskSize, ... }:
+{ config, lib, pkgs, nixpkgs, netbootUrlbase, useSquashfs, ... }:
 
 with lib;
 
 {
   options = {
-
     netboot.squashfsCompression = mkOption {
       default = with pkgs.stdenv.hostPlatform; "xz -Xdict-size 100% "
         + lib.optionalString isx86 "-Xbcj x86"
@@ -63,21 +62,17 @@ with lib;
       ++ (lib.optionals (pkgs.stdenv.hostPlatform.system != "aarch64-linux") [ pkgs.grub2 pkgs.syslinux ]);
 
     # file systems
-    fileSystems."/" = mkImageMediaOverride
-      {
-        fsType = "tmpfs";
-        options = [ "mode=0755" "size=${rootDiskSize}" ];
-      };
+    fileSystems = (if useSquashfs then {
+      "/nix/store" = mkImageMediaOverride
+        {
+          fsType = "squashfs";
+          device = "../nix-store.squashfs";
+          options = [ "loop" ];
+          neededForBoot = true;
+        };
+    } else { });
 
-    fileSystems."/nix/store" = mkImageMediaOverride
-      {
-        fsType = "squashfs";
-        device = "../nix-store.squashfs";
-        options = [ "loop" ];
-        neededForBoot = true;
-      };
-
-    boot.initrd.availableKernelModules = [ "squashfs" ];
+    boot.initrd.availableKernelModules = (if useSquashfs then [ "squashfs" ] else [ ]);
     boot.initrd.kernelModules = [ "loop" ];
 
     # Closures to be copied to the Nix store, namely the init
@@ -86,22 +81,32 @@ with lib;
       [ config.system.build.toplevel ];
 
     # Create the squashfs image that contains the Nix store.
-    system.build.squashfsStore = pkgs.callPackage "${nixpkgs}/nixos/lib/make-squashfs.nix" {
-      storeContents = config.netboot.storeContents;
-      comp = config.netboot.squashfsCompression;
-    };
+    system.build.squashfsStore =
+      if useSquashfs then
+        pkgs.callPackage "${nixpkgs}/nixos/lib/make-squashfs.nix"
+          {
+            storeContents = config.netboot.storeContents;
+            comp = config.netboot.squashfsCompression;
+          }
+      else null;
 
     # Create the initrd
-    system.build.netbootRamdisk = pkgs.makeInitrdNG {
-      inherit (config.boot.initrd) compressor;
-      prepend = [ "${config.system.build.initialRamdisk}/initrd" ];
+    system.build.netbootRamdisk =
+      if useSquashfs then
+        pkgs.makeInitrdNG
+          {
+            inherit (config.boot.initrd) compressor;
+            prepend = [ "${config.system.build.initialRamdisk}/initrd" ];
 
-      contents =
-        [{
-          object = config.system.build.squashfsStore;
-          symlink = "/nix-store.squashfs";
-        }];
-    };
+            contents =
+              [{
+                object = config.system.build.squashfsStore;
+                symlink = "/nix-store.squashfs";
+              }];
+          }
+      else
+      # else use the default
+        config.system.build.initialRamdisk;
 
     # ipxe boot script
     system.build.netbootIpxeScript = pkgs.writeTextDir "netboot.ipxe" ''
