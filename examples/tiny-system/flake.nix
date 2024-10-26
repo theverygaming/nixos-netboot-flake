@@ -9,6 +9,7 @@
       targetSystem = "x86_64-linux";
       hostSystem = "x86_64-linux";
       netbootUrlbase = "http://192.168.2.131:8081";
+      useSquashfs = true;
       extraModules = [
         # for the QEMU VM
         "${nixpkgs}/nixos/modules/profiles/qemu-guest.nix"
@@ -17,6 +18,13 @@
         # .. sadly couldn't get perlless to work (something something stage 1 init??)
         "${nixpkgs}/nixos/modules/profiles/perlless.nix" # NOTE: this forbids perl from being used anywhere, so if you need perl, remove this line
         ({ lib, pkgs, ... }: {
+          # we do want something on root
+          fileSystems."/" = lib.mkImageMediaOverride
+            {
+              fsType = "tmpfs";
+              options = [ "mode=0755" "size=10M" ];
+            };
+
           nix.enable = false;
 
           # do not pull in nix (caused by the iso build)
